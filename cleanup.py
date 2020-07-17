@@ -49,9 +49,12 @@ def clean_filename(filename):
 
 
 def recursive_scan(target_path, prune=None):
+    print(f'{str(target_path)}/')
     p = Path(target_path)
     # print('## Current in', str(p))
-    for i in p.glob('*'):
+    nodes = sorted(p.glob('*'), key=lambda f: (0 if f.is_dir() else 1, f.name))
+    # print(nodes)
+    for i in nodes:
         if i.is_dir():
             recursive_scan(i, prune)   # 递归遍历子目录
             color = 'cyan'
