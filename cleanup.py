@@ -8,6 +8,7 @@ from pathlib import Path
 
 statistics = {'D': 0, '-': 0, 'dir-total-count': 0, 'file-total-count': 0}
 clean_patterns = []
+clean_list = []
 
 
 def uniq_list_keep_order(seq):
@@ -48,8 +49,9 @@ def clean_filename(filename):
     return filename
 
 
-def recursive_scan(target_path, prune=None):
-    print(f'{str(target_path)}/')
+def recursive_scan(target_path, prune=None, verbose=None):
+    if verbose:
+        print(f'{str(target_path)}/')
     p = Path(target_path)
     # print('## Current in', str(p))
     nodes = sorted(p.glob('*'), key=lambda f: (0 if f.is_dir() else 1, f.name))
@@ -69,11 +71,12 @@ def recursive_scan(target_path, prune=None):
         new_filename = clean_filename(i.name)
         if new_filename != i.name:
             statistics[node_type] += 1
-            click.secho(f'[*] {i.parent}/{{ {i.name} => {new_filename} }}{trailing_slash}', fg=color)
-            if prune:
-                i.rename(i.parent / new_filename)
+            clean_list.append((i, new_filename))
+            if verbose:
+                click.secho(f'[*] {i.parent}/{{ {i.name} => {new_filename} }}{trailing_slash}', fg=color)
         else:
-            print(f'    {i.name}{trailing_slash}')
+            if verbose:
+                print(f'    {i.name}{trailing_slash}')
 
 
 @click.command()
@@ -81,7 +84,8 @@ def recursive_scan(target_path, prune=None):
 @click.option('--prune', is_flag=True, default=False, help='rename files and directories which matched clean patterns')
 @click.option('-c', '--cleanup-patterns-file',
               help='file of cleanup patterns. Default: search "cleanup-patterns.txt" in [TARGET-PATH, $HOME, BIN-PATH]')
-def main(target_path, prune, cleanup_patterns_file):
+@click.option('-v', '--verbose', count=True, help='Increase output verbosity.')
+def main(target_path, prune, cleanup_patterns_file, verbose):
     if not cleanup_patterns_file:
         guess_paths = [
             Path(target_path),
@@ -91,13 +95,26 @@ def main(target_path, prune, cleanup_patterns_file):
         cleanup_patterns_file = guess_path('cleanup-patterns.txt', guess_paths)
     if cleanup_patterns_file:
         load_patterns(cleanup_patterns_file)
-    recursive_scan(target_path, prune)
+    recursive_scan(target_path, prune, verbose)
 
-    print('\n## Statistics')
-    print('Dir Total:', statistics['dir-total-count'])
-    print('Renamed Dirs :', statistics['D'])
-    print('File Total:', statistics['file-total-count'])
-    print('Renamed Files:', statistics['-'])
+    if clean_list:
+        click.echo("--- Summary ---")
+    for i, new_filename in clean_list:
+        if i.is_dir():
+            color = 'cyan'
+            trailing_slash = '/'
+        else:
+            color = 'green'
+            trailing_slash = ''
+        click.secho(f'[*] {i.parent}/{{ {i.name} => {new_filename} }}{trailing_slash}', fg=color)
+        if prune:
+            i.rename(i.parent / new_filename)
+
+    click.echo('--- Statistics ---')
+    click.echo(f'    Dir Total: {statistics["dir-total-count"]}')
+    click.echo(f' Renamed Dirs: {statistics["D"]}')
+    click.echo(f'   File Total: {statistics["file-total-count"]}')
+    click.echo(f'Renamed Files: {statistics["-"]}')
 
 
 if __name__ == '__main__':
