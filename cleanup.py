@@ -155,17 +155,19 @@ def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, pru
         for i, pat in pending_list['remove']:
             click.secho('[-] ', fg='red', nl=False)
 
-            _, trailing_slash = get_badge(i)
-            verbose_info = f' <= {pat}' if verbose and pat else ''
-            color = 'red' if pat else None
-            click.secho(f'{i}{trailing_slash}{verbose_info}', fg=color)
+            color, trailing_slash = get_badge(i)
+            if not pat:
+                color = None
+            click.echo(f'{i.parent}/', nl=False)
+            click.secho(f'{i.name}{trailing_slash}', fg=color, nl=False)
+            click.echo(f' <= {pat}' if verbose and pat else '')
             if prune:
                 i.rmdir() if i.is_dir() else i.unlink()
 
     # rename
     if feature_rename:
         for i, new_filename in pending_list['cleanup']:
-            click.secho('[*] ', fg='green', nl=False)
+            click.secho('[*] ', fg='yellow', nl=False)
 
             color, trailing_slash = get_badge(i)
             op_info = click.style(f'{{ {i.name} => {new_filename} }}{trailing_slash}', fg=color)
