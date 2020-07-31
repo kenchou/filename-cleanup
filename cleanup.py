@@ -148,27 +148,32 @@ def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, pru
 
     # cleanup
     if pending_list['remove'] or pending_list['cleanup']:
-        click.echo("--- Summary ---")
+        click.echo("\n--- Summary ---")
 
     # remove
     if feature_remove:
         for i, pat in pending_list['remove']:
+            click.secho('[-] ', fg='red', nl=False)
+
             _, trailing_slash = get_badge(i)
-            extra_info = f' <= {pat}' if verbose and pat else ''
+            verbose_info = f' <= {pat}' if verbose and pat else ''
             color = 'red' if pat else None
-            click.secho(f'[-] {i}{trailing_slash}{extra_info}', fg=color)
+            click.secho(f'{i}{trailing_slash}{verbose_info}', fg=color)
             if prune:
                 i.rmdir() if i.is_dir() else i.unlink()
 
     # rename
     if feature_rename:
         for i, new_filename in pending_list['cleanup']:
+            click.secho('[*] ', fg='green', nl=False)
+
             color, trailing_slash = get_badge(i)
-            click.secho(f'[*] {i.parent}/{{ {i.name} => {new_filename} }}{trailing_slash}', fg=color)
+            op_info = click.style(f'{{ {i.name} => {new_filename} }}{trailing_slash}', fg=color)
+            click.echo(f'{i.parent}/{op_info}')
             if prune:
                 i.rename(i.parent / new_filename)
 
-    click.echo('--- Statistics ---')
+    click.echo('\n--- Statistics ---')
     click.echo(f'    Dir Total: {statistics["dir-total-count"]}')
     click.echo(f'   File Total: {statistics["file-total-count"]}')
     click.echo(f'Files Removed: {statistics["removed"]}')
