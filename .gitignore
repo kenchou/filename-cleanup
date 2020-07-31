@@ -1,4 +1,4 @@
-cleanup-patterns.txt
+cleanup-patterns.yml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
