@@ -79,13 +79,13 @@ def recursive_scan(target_path):
     enabled_rename = global_options['feature_rename']
 
     p = Path(target_path)
-    nodes = sorted(p.glob('*'), key=lambda f: (0 if f.is_dir() else 1, f.name))     # 目录优先，深度优先
+    nodes = sorted(p.iterdir(), key=lambda f: (0 if f.is_dir() else 1, f.name))     # 目录优先，深度优先
     for i in nodes:
         if enabled_remove:
             matched, pat = match_remove_pattern(i.name)
             if matched:
                 if i.is_dir():  # remove dir and all children
-                    children = [(x, None) for x in i.glob('**/*')]
+                    children = [(x, None) for x in reversed(list(i.glob('**/*')))]
                     pending_list['remove'].extend(children)
                     statistics['removed'] += len(children)
                     statistics['dir-total-count'] += len([1 for x, _ in children if x.is_dir()]) + 1
