@@ -18,6 +18,7 @@ patterns = {
 pending_list = {
     'remove': [],
     'cleanup': [],
+    'normal': [],
 }
 
 
@@ -79,6 +80,8 @@ def recursive_scan(target_path):
     enabled_rename = global_options['feature_rename']
 
     p = Path(target_path)
+    if '.tmp' == str(p.name):
+        return
     nodes = sorted(p.iterdir(), key=lambda f: (0 if f.is_dir() else 1, f.name))     # 目录优先，深度优先
     for i in nodes:
         if enabled_remove:
@@ -107,6 +110,8 @@ def recursive_scan(target_path):
             if new_filename != i.name:
                 statistics['renamed'] += 1
                 pending_list['cleanup'].append((i, new_filename))
+                continue
+        pending_list['normal'].append(i)
 
 
 def get_badge(i):
@@ -160,7 +165,7 @@ def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, pru
                 color = None
             click.echo(f'{i.parent}/', nl=False)
             click.secho(f'{i.name}{trailing_slash}', fg=color, nl=False)
-            click.echo(f' <= {pat}' if verbose and pat else '')
+            click.echo(f' <= {pat}' if verbose >=3 and pat else '')
             if prune:
                 i.rmdir() if i.is_dir() else i.unlink()
 
@@ -174,6 +179,14 @@ def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, pru
             click.echo(f'{i.parent}/{op_info}')
             if prune:
                 i.rename(i.parent / new_filename)
+
+    if verbose:
+        for i in pending_list['normal']:
+            color, trailing_slash = get_badge(i)
+            click.echo('    ', nl=False)
+            if str(i.parent) != '.':
+                click.echo(f'{i.parent}/', nl=False)
+            click.secho(f'{i.name}{trailing_slash}', fg='white')
 
     click.echo('\n--- Statistics ---')
     click.echo(f'    Dir Total: {statistics["dir-total-count"]}')
