@@ -4,10 +4,17 @@ import click
 import re
 import yaml
 
+from collections import OrderedDict
 from fnmatch import fnmatch
+from os.path import commonpath
 from pathlib import Path
 from typing import Pattern
 
+
+space = '    '
+branch = '│   '
+tee = '├── '
+last = '└── '
 
 global_options = {}
 statistics = {'removed': 0, 'renamed': 0, 'dir-total-count': 0, 'file-total-count': 0}
@@ -121,6 +128,35 @@ def get_badge(i):
         return 'green', ''
 
 
+def path_list_to_tree(path_list):
+    tree = OrderedDict()
+    for i in path_list:
+        node = tree
+        for p in i.parts:
+            if p == i.name and not i.is_dir():
+                node.setdefault(p, None)  # leaf
+            else:
+                node = node.setdefault(p, OrderedDict())  # sub-dir
+    return tree
+
+
+def print_tree(dir_path: Path, prefix=''):
+    """A recursive generator, given a directory Path object
+    will yield a visual tree structure line by line
+    with each line prefixed by the same characters
+    """
+    contents = dir_path.keys()
+    # contents each get pointers that are ├── with a final └── :
+    pointers = [tee] * (len(contents) - 1) + [last]
+    for pointer, path in zip(pointers, contents):
+        yield prefix + pointer + path
+        node = dir_path[path]
+        if node is not None:  # extend the prefix and recurse:
+            extension = branch if pointer == tee else space
+            # i.e. space because last, └── , above so no more |
+            yield from print_tree(node, prefix=prefix+extension)
+
+
 @click.command()
 @click.argument('target-path', default='.')
 @click.option('-c', '--config', 'cleanup_patterns_file', metavar='<PATTERNS-CONFIG-FILE>',
@@ -175,18 +211,15 @@ def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, pru
             click.secho('[*] ', fg='yellow', nl=False)
 
             color, trailing_slash = get_badge(i)
-            op_info = click.style(f'{{ {i.name} => {new_filename} }}{trailing_slash}', fg=color)
-            click.echo(f'{i.parent}/{op_info}')
+            old = click.style(i.name, fg=color)
+            new = click.style(new_filename, fg='yellow')
+            click.echo(f'{i.parent}/{{ "{old}" => "{new}" }}{trailing_slash}')
             if prune:
                 i.rename(i.parent / new_filename)
 
     if verbose:
-        for i in pending_list['normal']:
-            color, trailing_slash = get_badge(i)
-            click.echo('    ', nl=False)
-            if str(i.parent) != '.':
-                click.echo(f'{i.parent}/', nl=False)
-            click.secho(f'{i.name}{trailing_slash}', fg='white')
+        for item in print_tree(path_list_to_tree(pending_list['normal'])):
+            print(item)
 
     click.echo('\n--- Statistics ---')
     click.echo(f'    Dir Total: {statistics["dir-total-count"]}')
