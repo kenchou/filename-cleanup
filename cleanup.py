@@ -88,43 +88,45 @@ def clean_filename(filename):
     return filename
 
 
-def recursive_scan(target_path):
+def recursive_cleanup(target_path):
     enabled_remove = global_options['feature_remove']
     enabled_rename = global_options['feature_rename']
 
-    p = Path(target_path)
-    if '.tmp' == str(p.name):
+    t = Path(target_path)
+    if '.tmp' == str(t.name):
         return
-    nodes = sorted(p.iterdir(), key=lambda f: (0 if f.is_dir() else 1, f.name))     # 目录优先，深度优先
-    for i in nodes:
-        if enabled_remove:
-            matched, pat = match_remove_pattern(i.name)
-            if matched:
-                if i.is_dir():  # remove dir and all children
-                    children = [(x, None) for x in reversed(list(i.glob('**/*')))]
-                    pending_list['remove'].extend(children)
-                    statistics['removed'] += len(children)
-                    statistics['dir-total-count'] += len([1 for x, _ in children if x.is_dir()]) + 1
-                    statistics['file-total-count'] += len([1 for x, _ in children if not x.is_dir()])
-                else:
-                    statistics['file-total-count'] += 1
-                pending_list['remove'].append((i, pat))
-                statistics['removed'] += 1
-                continue
 
-        if i.is_dir():
-            recursive_scan(i)   # 递归遍历子目录, 深度优先
-            statistics['dir-total-count'] += 1
-        else:
-            statistics['file-total-count'] += 1
+    if enabled_remove:
+        matched, pat = match_remove_pattern(t.name)
+        if matched:
+            if t.is_dir():  # remove dir and all children
+                children = [(x, None) for x in reversed(list(t.glob('**/*')))]
+                pending_list['remove'].extend(children)
+                statistics['removed'] += len(children)
+                statistics['dir-total-count'] += len([1 for x, _ in children if x.is_dir()]) + 1
+                statistics['file-total-count'] += len([1 for x, _ in children if not x.is_dir()])
+            else:
+                statistics['file-total-count'] += 1
+            pending_list['remove'].append((t, pat))
+            statistics['removed'] += 1
+            return  # return early
 
-        if enabled_rename:
-            new_filename = clean_filename(i.name)
-            if new_filename != i.name:
-                statistics['renamed'] += 1
-                pending_list['cleanup'].append((i, new_filename))
-                continue
-        pending_list['normal'].append(i)
+    if t.is_dir():  # do not follow symlinks
+        nodes = sorted(t.iterdir(), key=lambda f: (0 if f.is_dir() else 1, f.name))  # 目录优先/深度优先
+        for item in nodes:
+            recursive_cleanup(item)  # 递归遍历子目录, 深度优先
+        statistics['dir-total-count'] += 1
+    else:
+        statistics['file-total-count'] += 1
+
+    if enabled_rename:
+        new_filename = clean_filename(t.name)
+        if new_filename != t.name:
+            statistics['renamed'] += 1
+            pending_list['cleanup'].append((t, new_filename))
+            return
+
+    pending_list['normal'].append(t)
 
 
 def get_badge(i):
@@ -196,7 +198,7 @@ def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, pru
         load_patterns(cleanup_patterns_file)
 
     # scan dir
-    recursive_scan(target_path)
+    recursive_cleanup(target_path)
 
     # cleanup
     if pending_list['remove'] or pending_list['cleanup']:
