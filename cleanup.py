@@ -1,15 +1,21 @@
 #!/usr/bin/env python
 
 import click
+import logging
 import re
 import yaml
 
 from collections import OrderedDict
 from fnmatch import fnmatch
-from os.path import commonpath
 from pathlib import Path
 from typing import Pattern
 
+
+LOG_LEVEL = {
+    0: logging.WARNING,
+    1: logging.INFO,
+    2: logging.DEBUG,
+}
 
 space = '    '
 branch = '│   '
@@ -169,19 +175,24 @@ def print_tree(dir_path: Path, prefix=''):
               help='Execute remove and rename files and directories which matched clean patterns')
 @click.option('-v', '--verbose', count=True)
 def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, prune, verbose):
+    logging.basicConfig()
+    logger = logging.getLogger('cleanup')
+    logger.setLevel(LOG_LEVEL[verbose] if verbose in LOG_LEVEL else logging.DEBUG)
+
     global_options['feature_remove'] = feature_remove
     global_options['feature_rename'] = feature_rename
     global_options['prune'] = prune
 
     # load config
     if not cleanup_patterns_file:
-        guess_paths = [
-            Path(target_path),
+        t = Path(target_path)
+        guess_paths = [t] + list(t.absolute().parents) + [
             Path.home(),
             Path(__file__).resolve().parent,  # ${BIN_PATH}/.aria2/
         ]
         cleanup_patterns_file = guess_path('cleanup-patterns.yml', guess_paths)
     if cleanup_patterns_file:
+        logger.info(f"{cleanup_patterns_file=}")
         load_patterns(cleanup_patterns_file)
 
     # scan dir
