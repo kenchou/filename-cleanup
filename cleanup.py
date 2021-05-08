@@ -185,9 +185,13 @@ def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, pru
     global_options['feature_rename'] = feature_rename
     global_options['prune'] = prune
 
+    t = Path(target_path)
+    if not t.exists():
+        click.secho(f'target path "{target_path}" does not exists.', err=True)
+        exit(1)
+
     # load config
     if not cleanup_patterns_file:
-        t = Path(target_path)
         guess_paths = [t] + list(t.absolute().parents) + [
             Path.home(),
             Path(__file__).resolve().parent,  # ${BIN_PATH}/.aria2/
@@ -198,7 +202,7 @@ def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, pru
         load_patterns(cleanup_patterns_file)
 
     # scan dir
-    recursive_cleanup(target_path)
+    recursive_cleanup(t)
 
     # cleanup
     if pending_list['remove'] or pending_list['cleanup']:
