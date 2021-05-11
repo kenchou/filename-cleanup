@@ -1,4 +1,4 @@
-cleanup-patterns.yml
+.cleanup-patterns.yml
 example_dir
 
 # Byte-compiled / optimized / DLL files

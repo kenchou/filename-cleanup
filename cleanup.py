@@ -99,7 +99,7 @@ def recursive_cleanup(target_path):
     if enabled_remove:
         matched, pat = match_remove_pattern(t.name)
         if matched:
-            if t.is_dir():  # remove dir and all children
+            if t.is_dir() and not t.is_symlink():  # remove dir and all children
                 children = [(x, None) for x in reversed(list(t.glob('**/*')))]
                 pending_list['remove'].extend(children)
                 statistics['removed'] += len(children)
@@ -111,7 +111,7 @@ def recursive_cleanup(target_path):
             statistics['removed'] += 1
             return  # return early
 
-    if t.is_dir():  # do not follow symlinks
+    if t.is_dir() and not t.is_symlink():  # do not follow symlinks
         nodes = sorted(t.iterdir(), key=lambda f: (0 if f.is_dir() else 1, f.name))  # 目录优先/深度优先
         for item in nodes:
             recursive_cleanup(item)  # 递归遍历子目录, 深度优先
@@ -136,19 +136,19 @@ def get_badge(i):
         return 'green', ''
 
 
-def path_list_to_tree(path_list):
+def path_list_to_tree_dict(path_list):
     tree = OrderedDict()
     for i in path_list:
         node = tree
         for p in i.parts:
-            if p == i.name and not i.is_dir():
+            if p == i.name and (i.is_file() or i.is_symlink()):
                 node.setdefault(p, None)  # leaf
             else:
                 node = node.setdefault(p, OrderedDict())  # sub-dir
     return tree
 
 
-def print_tree(dir_path: Path, prefix=''):
+def tree_dict_iterator(dir_path, prefix=''):
     """A recursive generator, given a directory Path object
     will yield a visual tree structure line by line
     with each line prefixed by the same characters
@@ -162,21 +162,25 @@ def print_tree(dir_path: Path, prefix=''):
         if node is not None:  # extend the prefix and recurse:
             extension = branch if pointer == tee else space
             # i.e. space because last, └── , above so no more |
-            yield from print_tree(node, prefix=prefix+extension)
+            yield from tree_dict_iterator(node, prefix=prefix + extension)
 
 
 @click.command()
 @click.argument('target-path', default='.')
 @click.option('-c', '--config', 'cleanup_patterns_file', metavar='<PATTERNS-CONFIG-FILE>',
-              help='file of cleanup patterns. Default: search "cleanup-patterns.yml" in [TARGET-PATH, $HOME, BIN-PATH]')
-@click.option('-d/-D', '--rm/--no-rm', 'feature_remove', default=True,
-              help='Remove (or not) files and directories which matched remove patterns')
+              help='yml config of cleanup patterns. '
+                   'Default: search ".cleanup-patterns.yml" in [TARGET-PATH, **TARGET-PATH.PARENTS, $HOME, BIN-PATH]')
+@click.option('-d/-D', '--remove/--no-remove', 'feature_remove', default=True,
+              help='Remove (or not) files and directories which matched remove patterns. Default: --remove')
 @click.option('-r/-R', '--rename/--no-rename', 'feature_rename', default=True,
-              help='Rename (or not) files and directories which matched patterns')
+              help='Rename (or not) files and directories which matched patterns. Default: --rename')
+@click.option('-e/-E', '--empty/--no-empty', default=True,
+              help='Remove empty dir. Default: --empty')
 @click.option('--prune', is_flag=True, default=False,
               help='Execute remove and rename files and directories which matched clean patterns')
-@click.option('-v', '--verbose', count=True)
-def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, prune, verbose):
+@click.option('-v', '--verbose', count=True,
+              help='-v=info, -vv=debug')
+def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, empty, prune, verbose):
     logging.basicConfig()
     logger = logging.getLogger('cleanup')
     logger.setLevel(LOG_LEVEL[verbose] if verbose in LOG_LEVEL else logging.DEBUG)
@@ -185,30 +189,32 @@ def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, pru
     global_options['feature_rename'] = feature_rename
     global_options['prune'] = prune
 
-    t = Path(target_path)
-    if not t.exists():
-        click.secho(f'target path "{target_path}" does not exists.', err=True)
+    target = Path(target_path)
+    if not target.exists():
+        click.secho(f'Target path "{target_path}" does not exists.', err=True)
         exit(1)
 
-    # load config
+    # guess the config location
     if not cleanup_patterns_file:
-        guess_paths = [t] + list(t.absolute().parents) + [
+        guess_paths = [target] + list(target.absolute().parents) + [
             Path.home(),
             Path(__file__).resolve().parent,  # ${BIN_PATH}/.aria2/
         ]
-        cleanup_patterns_file = guess_path('cleanup-patterns.yml', guess_paths)
+        cleanup_patterns_file = guess_path('.cleanup-patterns.yml', guess_paths)
+
+    # load patterns from config
     if cleanup_patterns_file:
         logger.info(f"{cleanup_patterns_file=}")
         load_patterns(cleanup_patterns_file)
 
-    # scan dir
-    recursive_cleanup(t)
+    # recursive scan the target dir
+    recursive_cleanup(target)
 
     # cleanup
     if pending_list['remove'] or pending_list['cleanup']:
         click.echo("\n--- Summary ---")
 
-    # remove
+    # remove junk files
     if feature_remove:
         for i, pat in pending_list['remove']:
             click.secho('[-] ', fg='red', nl=False)
@@ -218,11 +224,12 @@ def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, pru
                 color = None
             click.echo(f'{i.parent}/', nl=False)
             click.secho(f'{i.name}{trailing_slash}', fg=color, nl=False)
-            click.echo(f' <= {pat}' if verbose >=3 and pat else '')
+            click.echo(f' <= {pat}' if verbose >= 3 and pat else '')
             if prune:
-                i.rmdir() if i.is_dir() else i.unlink()
+                # do not follow symlink
+                i.rmdir() if i.is_dir() and not i.is_symlink() else i.unlink()
 
-    # rename
+    # clean/rename filename
     if feature_rename:
         for i, new_filename in pending_list['cleanup']:
             click.secho('[*] ', fg='yellow', nl=False)
@@ -235,7 +242,9 @@ def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, pru
                 i.rename(i.parent / new_filename)
 
     if verbose:
-        for item in print_tree(path_list_to_tree(pending_list['normal'])):
+        # ○ ◎ ● ⊕ ☑ ☒ □ ■ ⌫ ⌈
+        print('☒ [Remaining]')
+        for item in tree_dict_iterator(path_list_to_tree_dict(pending_list['normal'])):
             print(item)
 
     click.echo('\n--- Statistics ---')
