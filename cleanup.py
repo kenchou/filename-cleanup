@@ -5,7 +5,8 @@ import logging
 import re
 import yaml
 
-from collections import OrderedDict, Mapping
+from collections.abc import Mapping
+from collections import OrderedDict
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Pattern
