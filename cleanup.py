@@ -5,7 +5,7 @@ import logging
 import re
 import yaml
 
-from collections import OrderedDict
+from collections import OrderedDict, Mapping
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Pattern
@@ -141,8 +141,11 @@ def path_list_to_tree_dict(path_list):
     for i in path_list:
         node = tree
         for p in i.parts:
-            if p == i.name and (i.is_file() or i.is_symlink()):
-                node.setdefault(p, None)  # leaf
+            if p == i.name:
+                if i.is_symlink():
+                    node.setdefault(p, str(i.readlink()))  # leaf
+                else:
+                    node.setdefault(p, None)  # leaf
             else:
                 node = node.setdefault(p, OrderedDict())  # sub-dir
     return tree
@@ -157,9 +160,11 @@ def tree_dict_iterator(dir_path, prefix=''):
     # contents each get pointers that are ├── with a final └── :
     pointers = [tee] * (len(contents) - 1) + [last]
     for pointer, path in zip(pointers, contents):
-        yield prefix + pointer + path
         node = dir_path[path]
-        if node is not None:  # extend the prefix and recurse:
+        if isinstance(node, str):   # append symlink
+            path += '@ -> ' + node
+        yield prefix + pointer + path
+        if isinstance(node, Mapping):  # extend the prefix and recurse:
             extension = branch if pointer == tee else space
             # i.e. space because last, └── , above so no more |
             yield from tree_dict_iterator(node, prefix=prefix + extension)
