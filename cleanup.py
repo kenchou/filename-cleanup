@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Pattern
 
 
+logging.basicConfig()
+logger = logging.getLogger('cleanup')
 LOG_LEVEL = {
     0: logging.WARNING,
     1: logging.INFO,
@@ -180,20 +182,21 @@ def tree_dict_iterator(dir_path, prefix=''):
               help='Remove (or not) files and directories which matched remove patterns. Default: --remove')
 @click.option('-r/-R', '--rename/--no-rename', 'feature_rename', default=True,
               help='Rename (or not) files and directories which matched patterns. Default: --rename')
-@click.option('-e/-E', '--empty/--no-empty', default=True,
+@click.option('-e/-E', '--empty/--no-empty', 'empty_remove', default=True,
               help='Remove empty dir. Default: --empty')
 @click.option('--prune', is_flag=True, default=False,
               help='Execute remove and rename files and directories which matched clean patterns')
 @click.option('-v', '--verbose', count=True,
               help='-v=info, -vv=debug')
-def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, empty, prune, verbose):
-    logging.basicConfig()
-    logger = logging.getLogger('cleanup')
+def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, empty_remove, prune, verbose):
     logger.setLevel(LOG_LEVEL[verbose] if verbose in LOG_LEVEL else logging.DEBUG)
 
     global_options['feature_remove'] = feature_remove
     global_options['feature_rename'] = feature_rename
+    global_options['empty_remove'] = empty_remove
     global_options['prune'] = prune
+
+    logger.debug(f'{global_options=}')
 
     target = Path(target_path)
     if not target.exists():
@@ -233,7 +236,12 @@ def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, emp
             click.echo(f' <= {pat}' if verbose >= 3 and pat else '')
             if prune:
                 # do not follow symlink
-                i.rmdir() if i.is_dir() and not i.is_symlink() else i.unlink()
+                if i.is_dir() and not i.is_symlink():
+                    i.rmdir()
+                    if empty_remove and not any(i.iterdir()):   # remove empty dir
+                        i.unlink()
+                else:
+                    i.unlink()
 
     # clean/rename filename
     if feature_rename:
