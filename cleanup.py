@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Pattern
 
 
+logging.basicConfig()
+logger = logging.getLogger('cleanup')
 LOG_LEVEL = {
     0: logging.WARNING,
     1: logging.INFO,
@@ -92,27 +94,39 @@ def clean_filename(filename):
 def recursive_cleanup(target_path):
     enabled_remove = global_options['feature_remove']
     enabled_rename = global_options['feature_rename']
+    enabled_remove_empty_dirs = global_options['feature_remove_empty_dirs']
 
     t = Path(target_path)
-    if '.tmp' == str(t.name):
+    is_dir = t.is_dir() and not t.is_symlink()      # do not follow symlinks, linux vs macOS
+    if is_dir and '.tmp' == str(t.name):
         return
 
-    if enabled_remove:
-        matched, pat = match_remove_pattern(t.name)
-        if matched:
-            if t.is_dir() and not t.is_symlink():  # remove dir and all children
-                children = [(x, None) for x in reversed(list(t.glob('**/*')))]
-                pending_list['remove'].extend(children)
-                statistics['removed'] += len(children)
-                statistics['dir-total-count'] += len([1 for x, _ in children if x.is_dir()]) + 1
-                statistics['file-total-count'] += len([1 for x, _ in children if not x.is_dir()])
-            else:
-                statistics['file-total-count'] += 1
-            pending_list['remove'].append((t, pat))
-            statistics['removed'] += 1
-            return  # return early
+    if enabled_remove or enabled_remove_empty_dirs:
+        children = [(x, 'Pruning branches') for x in reversed(list(t.glob('**/*')))] if is_dir else []
+        if enabled_remove:
+            matched, pat = match_remove_pattern(t.name)
+            if matched:
+                if is_dir:  # remove dir and all children
+                    pending_list['remove'].extend(children)
+                    statistics['removed'] += len(children)
+                    statistics['dir-total-count'] += len([1 for x, _ in children if x.is_dir()]) + 1
+                    statistics['file-total-count'] += len([1 for x, _ in children if not x.is_dir()])
+                else:
+                    statistics['file-total-count'] += 1
+                pending_list['remove'].append((t, pat))
+                statistics['removed'] += 1
+                return  # return early
 
-    if t.is_dir() and not t.is_symlink():  # do not follow symlinks
+        # empty dirs
+        if enabled_remove_empty_dirs:
+            if is_dir and not any([x for x, _ in children if x.is_file()]):
+                pending_list['remove'].extend(children)
+                pending_list['remove'].append((t, 'Remove empty dirs'))
+                statistics['removed'] += len(children) + 1
+                statistics['dir-total-count'] += len([1 for x, _ in children if x.is_dir()]) + 1
+                return  # return early
+
+    if is_dir:
         nodes = sorted(t.iterdir(), key=lambda f: (0 if f.is_dir() else 1, f.name))  # 目录优先/深度优先
         for item in nodes:
             recursive_cleanup(item)  # 递归遍历子目录, 深度优先
@@ -180,19 +194,18 @@ def tree_dict_iterator(dir_path, prefix=''):
               help='Remove (or not) files and directories which matched remove patterns. Default: --remove')
 @click.option('-r/-R', '--rename/--no-rename', 'feature_rename', default=True,
               help='Rename (or not) files and directories which matched patterns. Default: --rename')
-@click.option('-e/-E', '--empty/--no-empty', default=True,
+@click.option('-e/-E', '--empty/--no-empty', 'feature_remove_empty_dirs', default=True,
               help='Remove empty dir. Default: --empty')
 @click.option('--prune', is_flag=True, default=False,
               help='Execute remove and rename files and directories which matched clean patterns')
 @click.option('-v', '--verbose', count=True,
               help='-v=info, -vv=debug')
-def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, empty, prune, verbose):
-    logging.basicConfig()
-    logger = logging.getLogger('cleanup')
+def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, feature_remove_empty_dirs, prune, verbose):
     logger.setLevel(LOG_LEVEL[verbose] if verbose in LOG_LEVEL else logging.DEBUG)
 
     global_options['feature_remove'] = feature_remove
     global_options['feature_rename'] = feature_rename
+    global_options['feature_remove_empty_dirs'] = feature_remove_empty_dirs
     global_options['prune'] = prune
 
     target = Path(target_path)
