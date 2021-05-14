@@ -26,7 +26,6 @@ tee = '├── '
 last = '└── '
 
 global_options = {}
-statistics = {'removed': 0, 'renamed': 0, 'dir-total-count': 0, 'file-total-count': 0}
 patterns = {
     'remove': [],
     'cleanup': [],
@@ -36,6 +35,7 @@ pending_list = {
     'cleanup': [],
     'normal': [],
 }
+statistics = {'removed': 0, 'renamed': 0, 'dir-total-count': 0, 'file-total-count': 0}
 
 
 def uniq_list_keep_order(seq):
@@ -139,8 +139,8 @@ def recursive_cleanup(target_path):
         if new_filename != t.name:
             statistics['renamed'] += 1
             pending_list['cleanup'].append((t, new_filename))
-            return
-
+            return  # return early
+    # remaining dirs/files
     pending_list['normal'].append(t)
 
 
@@ -195,7 +195,7 @@ def tree_dict_iterator(dir_path, prefix=''):
 @click.option('-r/-R', '--rename/--no-rename', 'feature_rename', default=True,
               help='Rename (or not) files and directories which matched patterns. Default: --rename')
 @click.option('-e/-E', '--empty/--no-empty', 'feature_remove_empty_dirs', default=True,
-              help='Remove empty dir. Default: --empty')
+              help='Remove (or not) empty dir. Default: --empty')
 @click.option('--prune', is_flag=True, default=False,
               help='Execute remove and rename files and directories which matched clean patterns')
 @click.option('-v', '--verbose', count=True,
@@ -217,7 +217,7 @@ def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, fea
     if not cleanup_patterns_file:
         guess_paths = [target] + list(target.absolute().parents) + [
             Path.home(),
-            Path(__file__).resolve().parent,  # ${BIN_PATH}/.aria2/
+            Path(__file__).resolve().parent,  # ${BIN_PATH}
         ]
         cleanup_patterns_file = guess_path('.cleanup-patterns.yml', guess_paths)
 
