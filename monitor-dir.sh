@@ -5,7 +5,7 @@ if [[ -z $1 ]]; then
 fi
 
 BIN_PATH=$(dirname $0)
-inotifywait -me moved_to "$@" | while read dir action file; do
+inotifywait -r -me moved_to "$@" | while read dir action file; do
     echo "The file '$file' appeared in directory '$dir' via '$action'"
     # do something with the file
     ${BIN_PATH}/cleanup.py -vvv --prune "${dir}/${file}"
