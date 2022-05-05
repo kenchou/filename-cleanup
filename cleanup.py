@@ -95,10 +95,15 @@ def recursive_cleanup(target_path):
     enabled_remove = global_options['feature_remove']
     enabled_rename = global_options['feature_rename']
     enabled_remove_empty_dirs = global_options['feature_remove_empty_dirs']
+    skip_parent_tmp = global_options['skip_parent_tmp']
 
     t = Path(target_path)
     is_dir = t.is_dir() and not t.is_symlink()      # do not follow symlinks, linux vs macOS
+    # skip .tmp in sub-dirs 
     if is_dir and '.tmp' == str(t.name):
+        return
+    # skip .tmp in parents dir
+    if skip_parent_tmp and '.tmp' in t.parts:
         return
 
     if enabled_remove or enabled_remove_empty_dirs:
@@ -196,16 +201,19 @@ def tree_dict_iterator(dir_path, prefix=''):
               help='Rename (or not) files and directories which matched patterns. Default: --rename')
 @click.option('-e/-E', '--empty/--no-empty', 'feature_remove_empty_dirs', default=True,
               help='Remove (or not) empty dir. Default: --empty')
+@click.option('-t/-T', '--skip-tmp-in-parents/--no-skip-tmp-in-parents', 'skip_parent_tmp', default=False,
+              help='ignored if any parents dir is .tmp')
 @click.option('--prune', is_flag=True, default=False,
               help='Execute remove and rename files and directories which matched clean patterns')
 @click.option('-v', '--verbose', count=True,
               help='-v=info, -vv=debug')
-def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, feature_remove_empty_dirs, prune, verbose):
+def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, feature_remove_empty_dirs, skip_parent_tmp, prune, verbose):
     logger.setLevel(LOG_LEVEL[verbose] if verbose in LOG_LEVEL else logging.DEBUG)
 
     global_options['feature_remove'] = feature_remove
     global_options['feature_rename'] = feature_rename
     global_options['feature_remove_empty_dirs'] = feature_remove_empty_dirs
+    global_options['skip_parent_tmp'] = skip_parent_tmp
     global_options['prune'] = prune
 
     target = Path(target_path)
