@@ -208,7 +208,7 @@ def tree_dict_iterator(dir_path, prefix=''):
 @click.option('-v', '--verbose', count=True,
               help='-v=info, -vv=debug')
 def main(target_path, cleanup_patterns_file, feature_remove, feature_rename, feature_remove_empty_dirs, skip_parent_tmp, prune, verbose):
-    logger.setLevel(LOG_LEVEL[verbose] if verbose in LOG_LEVEL else logging.DEBUG)
+    logger.setLevel(LOG_LEVEL[min(verbose, max(LOG_LEVEL))])
 
     global_options['feature_remove'] = feature_remove
     global_options['feature_rename'] = feature_rename
