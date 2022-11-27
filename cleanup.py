@@ -106,9 +106,7 @@ def recursive_cleanup(target_path):
 
     if enabled_remove or enabled_remove_empty_dirs:
         children = (
-            [(x, "Pruning branches") for x in reversed(list(t.glob("**/*")))]
-            if is_dir
-            else []
+            [(x, "Pruning branches") for x in reversed(list(t.glob("**/*")))] if is_dir else []
         )
         if enabled_remove:
             matched, pat = match_remove_pattern(t.name)
@@ -134,15 +132,11 @@ def recursive_cleanup(target_path):
                 pending_list["remove"].extend(children)
                 pending_list["remove"].append((t, "Remove empty dirs"))
                 statistics["removed"] += len(children) + 1
-                statistics["dir-total-count"] += (
-                    len([1 for x, _ in children if x.is_dir()]) + 1
-                )
+                statistics["dir-total-count"] += len([1 for x, _ in children if x.is_dir()]) + 1
                 return  # return early
 
     if is_dir:
-        nodes = sorted(
-            t.iterdir(), key=lambda f: (0 if f.is_dir() else 1, f.name)
-        )  # 目录优先/深度优先
+        nodes = sorted(t.iterdir(), key=lambda f: (0 if f.is_dir() else 1, f.name))  # 目录优先/深度优先
         for item in nodes:
             recursive_cleanup(item)  # 递归遍历子目录, 深度优先
         statistics["dir-total-count"] += 1
