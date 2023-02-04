@@ -123,7 +123,8 @@ def recursive_cleanup(target_path):
         )
         if enabled_remove:
             matched, pat = match_remove_pattern(t.name)
-            if not matched and t.is_file() and t.stat().st_size <= 100_000_000:  # try match hash
+            # try match hash if file size <= 20Mb
+            if not matched and t.is_file() and t.stat().st_size <= 20_000_000:
                 matched, pat = match_remove_hash(t)
             if matched:
                 if is_dir:  # remove dir and all children
