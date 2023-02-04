@@ -64,13 +64,13 @@ def guess_path(test_file, guess_paths=None):
 def load_patterns(filename):
     with open(filename, encoding="utf8") as f:
         config = yaml.safe_load(f)
-    for line in config["remove"].splitlines():
+    for line in config.get("remove", "").splitlines():
         patterns["remove"].append(
             re.compile(line[1:], flags=re.IGNORECASE) if line.startswith("/") else line
         )
-    for line in config["remove_hash"].splitlines():
+    for line in config.get("remove_hash", "").splitlines():
         patterns["remove_hash"].append(line)
-    for line in config["cleanup"].splitlines():
+    for line in config.get("cleanup", "").splitlines():
         patterns["cleanup"].append(re.compile(line, flags=re.IGNORECASE))
 
 
