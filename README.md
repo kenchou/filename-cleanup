@@ -33,16 +33,19 @@ Options:
 规则文件查找路径：
 1. 目标目录
 2. 目标的目录的上级（向上一直追溯到根目录，直到找到第一个）
-2. HOME 目录
-3. 脚本所在目录
+3. HOME 目录
+4. 脚本所在目录
 
 规则文件样例：
 
 ```yaml
-cleanup:
+remove: |-
+  通配符
+  /正则表达式
+remove_hash: |-
+  文件md5sum
+cleanup: |-
   不想要的字样
   粗鄙的词汇
-  ^[-@]+
+  正则表达式
 ```
-
-注: 配置文件 `.cleanup-patterns.yml` 和 [aria2rpc-oversee](https://github.com/kenchou/aria2rpc-oversee) 项目共用。本项目只用到 `cleanup` 段配置。
