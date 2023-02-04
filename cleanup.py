@@ -1,15 +1,16 @@
 #!/usr/bin/env python
-
 import click
+import hashlib
 import logging
 import re
 import yaml
 
-from collections.abc import Mapping
 from collections import OrderedDict
+from collections.abc import Mapping
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Pattern
+from typing import Pattern, Optional
+
 
 logging.basicConfig()
 logger = logging.getLogger("cleanup")
@@ -26,6 +27,7 @@ GLYPH_LAST = "└── "
 global_options = {}
 patterns = {
     "remove": [],
+    "remove_hash": [],
     "cleanup": [],
 }
 pending_list = {
@@ -66,6 +68,8 @@ def load_patterns(filename):
         patterns["remove"].append(
             re.compile(line[1:], flags=re.IGNORECASE) if line.startswith("/") else line
         )
+    for line in config["remove_hash"].splitlines():
+        patterns["remove_hash"].append(line)
     for line in config["cleanup"].splitlines():
         patterns["cleanup"].append(re.compile(line, flags=re.IGNORECASE))
 
@@ -80,6 +84,15 @@ def match_remove_pattern(filename):
             pat = p
         if matched:
             return matched, pat
+    return False, None
+
+
+def match_remove_hash(target_file: Path) -> tuple[bool, Optional[str]]:
+    # match hash
+    with target_file.open("rb") as f:
+        md5sum = hashlib.md5(f.read()).hexdigest()
+        if md5sum in patterns["remove_hash"]:
+            return True, md5sum
     return False, None
 
 
@@ -110,6 +123,8 @@ def recursive_cleanup(target_path):
         )
         if enabled_remove:
             matched, pat = match_remove_pattern(t.name)
+            if not matched and t.is_file() and t.stat().st_size <= 100_000_000:  # try match hash
+                matched, pat = match_remove_hash(t)
             if matched:
                 if is_dir:  # remove dir and all children
                     pending_list["remove"].extend(children)
