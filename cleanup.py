@@ -128,10 +128,8 @@ def recursive_cleanup(target_path):
             matched, pat = match_remove_pattern(t.name)
             # try match hash if file size <= 20Mb
             if (
-                feature_remove_by_hash
-                and not matched
-                and t.is_file()
-                and t.stat().st_size <= FILE_MAX_SIZE_WITH_HASH_CHECK
+                feature_remove_by_hash and patterns["remove_hash"] and not matched
+                and t.is_file() and t.stat().st_size <= FILE_MAX_SIZE_WITH_HASH_CHECK
             ):
                 matched, pat = match_remove_hash(t)
             if matched:
