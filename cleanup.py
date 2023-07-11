@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Pattern, Optional
 
 
+FILE_MAX_SIZE_WITH_HASH_CHECK = 20_000_000
+
 logging.basicConfig()
 logger = logging.getLogger("cleanup")
 LOG_LEVEL = {
@@ -106,6 +108,7 @@ def recursive_cleanup(target_path):
     enabled_remove = global_options["feature_remove"]
     enabled_rename = global_options["feature_rename"]
     enabled_remove_empty_dirs = global_options["feature_remove_empty_dirs"]
+    feature_remove_by_hash = global_options.get("feature_remove_by_hash")
     skip_parent_tmp = global_options["skip_parent_tmp"]
 
     t = Path(target_path)
@@ -124,7 +127,12 @@ def recursive_cleanup(target_path):
         if enabled_remove:
             matched, pat = match_remove_pattern(t.name)
             # try match hash if file size <= 20Mb
-            if not matched and t.is_file() and t.stat().st_size <= 20_000_000:
+            if (
+                feature_remove_by_hash
+                and not matched
+                and t.is_file()
+                and t.stat().st_size <= FILE_MAX_SIZE_WITH_HASH_CHECK
+            ):
                 matched, pat = match_remove_hash(t)
             if matched:
                 if is_dir:  # remove dir and all children
@@ -221,32 +229,44 @@ def tree_dict_iterator(dir_path, prefix=""):
     'Default: search ".cleanup-patterns.yml" in [TARGET-PATH, **TARGET-PATH.PARENTS, $HOME, BIN-PATH]',
 )
 @click.option(
-    "-d/-D",
     "--remove/--no-remove",
+    "-d/-D",
     "feature_remove",
     default=True,
-    help="Remove (or not) files and directories which matched remove patterns. Default: --remove",
+    help="Remove (or not) files and directories which matched remove patterns.",
+    show_default=True,
 )
 @click.option(
-    "-r/-R",
     "--rename/--no-rename",
+    "-r/-R",
     "feature_rename",
     default=True,
-    help="Rename (or not) files and directories which matched patterns. Default: --rename",
+    help="Rename (or not) files and directories which matched patterns.",
+    show_default=True,
 )
 @click.option(
+    "--remove-empty-dir/--no-remove-empty-dir",
     "-e/-E",
-    "--empty/--no-empty",
     "feature_remove_empty_dirs",
     default=True,
-    help="Remove (or not) empty dir. Default: --empty",
+    help="Remove (or not) empty dir.",
+    show_default=True,
 )
 @click.option(
-    "-t/-T",
+    "--enable-hash-match/--disable-hash-match",
+    "-h/-H",
+    "feature_remove_by_hash",
+    default=False,
+    help="remove file if hash matched.",
+    show_default=True,
+)
+@click.option(
     "--skip-tmp-in-parents/--no-skip-tmp-in-parents",
+    "-t/-T",
     "skip_parent_tmp",
     default=False,
     help="ignored if any parents dir is .tmp",
+    show_default=True,
 )
 @click.option(
     "--prune",
@@ -261,6 +281,7 @@ def main(
     feature_remove,
     feature_rename,
     feature_remove_empty_dirs,
+    feature_remove_by_hash,
     skip_parent_tmp,
     prune,
     verbose,
@@ -270,6 +291,7 @@ def main(
     global_options["feature_remove"] = feature_remove
     global_options["feature_rename"] = feature_rename
     global_options["feature_remove_empty_dirs"] = feature_remove_empty_dirs
+    global_options["feature_remove_by_hash"] = feature_remove_by_hash
     global_options["skip_parent_tmp"] = skip_parent_tmp
     global_options["prune"] = prune
 
