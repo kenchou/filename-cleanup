@@ -14,17 +14,21 @@ Options:
                                   search ".cleanup-patterns.yml" in [TARGET-
                                   PATH, **TARGET-PATH.PARENTS, $HOME, BIN-
                                   PATH]
-
   -d, --remove / -D, --no-remove  Remove (or not) files and directories which
-                                  matched remove patterns. Default: --remove
-
+                                  matched remove patterns.  [default: remove]
   -r, --rename / -R, --no-rename  Rename (or not) files and directories which
-                                  matched patterns. Default: --rename
-
-  -e, --empty / -E, --no-empty    Remove (or not) empty dir. Default: --empty
+                                  matched patterns.  [default: rename]
+  -e, --remove-empty-dir / -E, --no-remove-empty-dir
+                                  Remove (or not) empty dir.  [default:
+                                  remove-empty-dir]
+  -h, --enable-hash-match / -H, --disable-hash-match
+                                  remove file if hash matched.  [default:
+                                  disable-hash-match]
+  -t, --skip-tmp-in-parents / -T, --no-skip-tmp-in-parents
+                                  ignored if any parents dir is .tmp
+                                  [default: no-skip-tmp-in-parents]
   --prune                         Execute remove and rename files and
                                   directories which matched clean patterns
-
   -v, --verbose                   -v=info, -vv=debug
   --help                          Show this message and exit.
 ```
