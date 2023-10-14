@@ -96,14 +96,20 @@ def match_remove_pattern(filename):
 def match_remove_hash(target_file: Path):
     filename = target_file.name
     for p, hash_list in patterns["remove_hash"].items():
-        if hash_list and (
-            p.search(str(filename)) if isinstance(p, Pattern) else fnmatch(filename, p)
+        if (
+            hash_list
+            and (
+                p.search(str(filename))
+                if isinstance(p, Pattern)
+                else fnmatch(filename, p)
+            )
+            and target_file.stat().st_size <= FILE_MAX_SIZE_WITH_HASH_CHECK
         ):
             # match hash
             with target_file.open("rb") as f:
                 md5sum = hashlib.md5(f.read()).hexdigest()
                 if md5sum in hash_list:
-                    return True, md5sum
+                    return True, (p, md5sum)
     return False, None
 
 
@@ -139,11 +145,10 @@ def recursive_cleanup(target_path):
             matched, pat = match_remove_pattern(t.name)
             # try match hash if file size <= 20Mb
             if (
-                feature_remove_by_hash
+                not matched
+                and feature_remove_by_hash
                 and patterns["remove_hash"]
-                and not matched
                 and t.is_file()
-                and t.stat().st_size <= FILE_MAX_SIZE_WITH_HASH_CHECK
             ):
                 matched, pat = match_remove_hash(t)
             if matched:
