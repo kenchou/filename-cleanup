@@ -29,7 +29,7 @@ GLYPH_LAST = "└── "
 global_options = {}
 patterns = {
     "remove": [],
-    "remove_hash": [],
+    "remove_hash": {},
     "cleanup": [],
 }
 pending_list = {
@@ -70,8 +70,11 @@ def load_patterns(filename):
         patterns["remove"].append(
             re.compile(line[1:], flags=re.IGNORECASE) if line.startswith("/") else line
         )
-    for line in config.get("remove_hash", "").splitlines():
-        patterns["remove_hash"].append(line)
+    for key, hash_list in config.get("remove_hash", {}).items():
+        new_key = (
+            re.compile(key[1:], flags=re.IGNORECASE) if key.startswith("/") else key
+        )
+        patterns["remove_hash"][new_key] = hash_list
     for line in config.get("cleanup", "").splitlines():
         patterns["cleanup"].append(re.compile(line, flags=re.IGNORECASE))
 
@@ -89,12 +92,15 @@ def match_remove_pattern(filename):
     return False, None
 
 
-def match_remove_hash(target_file: Path) -> tuple[bool, Optional[str]]:
-    # match hash
-    with target_file.open("rb") as f:
-        md5sum = hashlib.md5(f.read()).hexdigest()
-        if md5sum in patterns["remove_hash"]:
-            return True, md5sum
+def match_remove_hash(target_file: Path):
+    filename = target_file.name
+    for p, hash_list in patterns["remove_hash"].items():
+        if p.search(str(filename)) if isinstance(p, Pattern) else fnmatch(filename, p):
+            # match hash
+            with target_file.open("rb") as f:
+                md5sum = hashlib.md5(f.read()).hexdigest()
+                if md5sum in hash_list:
+                    return True, md5sum
     return False, None
 
 
@@ -122,14 +128,19 @@ def recursive_cleanup(target_path):
 
     if enabled_remove or enabled_remove_empty_dirs:
         children = (
-            [(x, "Pruning branches") for x in reversed(list(t.glob("**/*")))] if is_dir else []
+            [(x, "Pruning branches") for x in reversed(list(t.glob("**/*")))]
+            if is_dir
+            else []
         )
         if enabled_remove:
             matched, pat = match_remove_pattern(t.name)
             # try match hash if file size <= 20Mb
             if (
-                feature_remove_by_hash and patterns["remove_hash"] and not matched
-                and t.is_file() and t.stat().st_size <= FILE_MAX_SIZE_WITH_HASH_CHECK
+                feature_remove_by_hash
+                and patterns["remove_hash"]
+                and not matched
+                and t.is_file()
+                and t.stat().st_size <= FILE_MAX_SIZE_WITH_HASH_CHECK
             ):
                 matched, pat = match_remove_hash(t)
             if matched:
@@ -154,11 +165,15 @@ def recursive_cleanup(target_path):
                 pending_list["remove"].extend(children)
                 pending_list["remove"].append((t, "Remove empty dirs"))
                 statistics["removed"] += len(children) + 1
-                statistics["dir-total-count"] += len([1 for x, _ in children if x.is_dir()]) + 1
+                statistics["dir-total-count"] += (
+                    len([1 for x, _ in children if x.is_dir()]) + 1
+                )
                 return  # return early
 
     if is_dir:
-        nodes = sorted(t.iterdir(), key=lambda f: (0 if f.is_dir() else 1, f.name))  # 目录优先/深度优先
+        nodes = sorted(
+            t.iterdir(), key=lambda f: (0 if f.is_dir() else 1, f.name)
+        )  # 目录优先/深度优先
         for item in nodes:
             recursive_cleanup(item)  # 递归遍历子目录, 深度优先
         statistics["dir-total-count"] += 1
