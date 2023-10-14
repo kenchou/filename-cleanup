@@ -95,7 +95,9 @@ def match_remove_pattern(filename):
 def match_remove_hash(target_file: Path):
     filename = target_file.name
     for p, hash_list in patterns["remove_hash"].items():
-        if p.search(str(filename)) if isinstance(p, Pattern) else fnmatch(filename, p):
+        if hash_list and (
+            p.search(str(filename)) if isinstance(p, Pattern) else fnmatch(filename, p)
+        ):
             # match hash
             with target_file.open("rb") as f:
                 md5sum = hashlib.md5(f.read()).hexdigest()
