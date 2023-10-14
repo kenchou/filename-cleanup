@@ -70,11 +70,12 @@ def load_patterns(filename):
         patterns["remove"].append(
             re.compile(line[1:], flags=re.IGNORECASE) if line.startswith("/") else line
         )
-    for key, hash_list in config.get("remove_hash", {}).items():
-        new_key = (
-            re.compile(key[1:], flags=re.IGNORECASE) if key.startswith("/") else key
-        )
-        patterns["remove_hash"][new_key] = hash_list
+    if config.get("remove_hash") is not None:
+        for key, hash_list in config.get("remove_hash", {}).items():
+            new_key = (
+                re.compile(key[1:], flags=re.IGNORECASE) if key.startswith("/") else key
+            )
+            patterns["remove_hash"][new_key] = hash_list
     for line in config.get("cleanup", "").splitlines():
         patterns["cleanup"].append(re.compile(line, flags=re.IGNORECASE))
 
